@@ -1,23 +1,19 @@
 import gab.opencv.*;
 import processing.video.*;
-import org.opencv.core.Core;
-import org.opencv.core.Mat;
+import java.awt.Rectangle;
+import java.util.ArrayList;
 
 Capture video;
 OpenCV opencv;
 
 PImage backgroundImage;
-Mat backgroundMat;
-Mat frameMat;
-Mat diffMat;
-
 boolean backgroundCaptured = false;
 
 void setup() {
   size(640, 480);
   video = new Capture(this, 640, 480);
   video.start();
-
+  
   opencv = new OpenCV(this, 640, 480);
 }
 
@@ -29,46 +25,58 @@ void draw() {
   image(video, 0, 0);
 
   if (backgroundCaptured) {
-    // Load current frame into OpenCV
-    opencv.loadImage(video);
-    frameMat = opencv.getColor();  // get current frame Mat
-    
-    // Compute absdiff between background and current frame
-    diffMat = new Mat();
-    Core.absdiff(backgroundMat, frameMat, diffMat);
+    // Convert current frame to grayscale with filter()
+    PImage currentFrame = video.get();
+    currentFrame.filter(GRAY);
 
-    // Load the difference into opencv object
-    opencv.setColor(diffMat);
-    
-    // Threshold the diff image
+    // Calculate absdiff between currentFrame and backgroundImage (both grayscale)
+    PImage diff = createImage(width, height, ALPHA);
+    diff.loadPixels();
+    currentFrame.loadPixels();
+    backgroundImage.loadPixels();
+    for (int i = 0; i < diff.pixels.length; i++) {
+      float b1 = brightness(currentFrame.pixels[i]);
+      float b2 = brightness(backgroundImage.pixels[i]);
+      float diffVal = abs(b1 - b2);
+      diff.pixels[i] = color(diffVal);
+    }
+    diff.updatePixels();
+
+    opencv.loadImage(diff);
     opencv.threshold(30);
-    
-    // Find contours
+
     ArrayList<Contour> contours = opencv.findContours();
-    
+
     noFill();
     strokeWeight(2);
-    stroke(0, 255, 0);
-    
     for (Contour contour : contours) {
       if (contour.area() > 5000) {
+        stroke(0, 255, 0);
         contour.draw();
-        // You can draw bounding boxes or other info here
+
+        Rectangle bbox = contour.getBoundingBox();
+        stroke(255, 0, 0);
+        rect(bbox.x, bbox.y, bbox.width, bbox.height);
+
+        fill(255);
+        noStroke();
+        textSize(14);
+        text("Area: " + nf(contour.area(), 0, 1), bbox.x, bbox.y - 10);
       }
     }
   }
 
   fill(255);
   textSize(16);
-  text("Press 'b' to capture background", 10, height - 10);
+  text("Press 'b' to capture background (no one in frame)", 10, height - 10);
 }
 
 void keyPressed() {
   if (key == 'b') {
-    // Capture background
-    backgroundImage = video.get();
-    opencv.loadImage(backgroundImage);
-    backgroundMat = opencv.getColor();
+    // Capture background as grayscale using Processing's filter()
+    PImage temp = video.get();
+    temp.filter(GRAY);
+    backgroundImage = temp;
     backgroundCaptured = true;
     println("Background captured!");
   }

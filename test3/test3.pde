@@ -141,32 +141,44 @@ void draw() {
     poseMask.loadPixels();
     maskLayer.loadPixels();
 
-    int inside = 0;
-    int outside = 0;
     
-  //conta os pixeis dentro e fora da figura
+    int inside = 0;    // user pixels inside pose
+    int outside = 0;   // user pixels outside pose
+    int poseArea = 0;          // total pose mask pixels
+    int coveredPoseArea = 0;   // pose pixels covered by user
+    
     for (int i = 0; i < poseMask.pixels.length; i++) {
-      boolean user = brightness(maskLayer.pixels[i]) > 127;
-      boolean target = brightness(poseMask.pixels[i]) > 127;
-
-      if (user && target) inside++;
-      else if (user && !target) outside++;
+      boolean userPixel = brightness(maskLayer.pixels[i]) > 127;
+      boolean posePixel = brightness(poseMask.pixels[i]) > 127;
+    
+      if (posePixel) {
+        poseArea++;
+        if (userPixel) {
+          coveredPoseArea++;
+        }
+      }
+    
+      if (userPixel && posePixel) inside++;
+      else if (userPixel && !posePixel) outside++;
     }
-
-   //calcula a percentagem dentro e fora
-    float total = inside + outside;
-    float insidePct = total > 0 ? inside / total * 100 : 0;
-    float outsidePct = total > 0 ? outside / total * 100 : 0;
-
-    fill(0, 150);
-    noStroke();
-    rect(0, 0, width, 60);
+    
+    float totalUserPixels = inside + outside;
+    float insidePct = totalUserPixels > 0 ? inside / (float)totalUserPixels * 100 : 0;
+    float outsidePct = totalUserPixels > 0 ? outside / (float)totalUserPixels * 100 : 0;
+    
+    float poseCoveragePct = poseArea > 0 ? coveredPoseArea / (float)poseArea * 100 : 0;
+    
+        // Show the percentages
     fill(255);
     textSize(16);
     text("Dentro da pose: " + nf(insidePct, 0, 1) + "%", 10, 25);
     text("Fora da pose: " + nf(outsidePct, 0, 1) + "%", 10, 45);
+    text("Cobertura da pose: " + nf(poseCoveragePct, 0, 1) + "%", 10, 65);
 
-    if (insidePct > 70 && outsidePct < 30) {
+    
+    println("Pose coverage: " + nf(poseCoveragePct, 0, 1) + "%");
+    
+    if (insidePct > 70 && outsidePct < 30 && poseCoveragePct >= 60) {
       fill(0, 200, 0);
       text("✅ Pose correta!", width - 180, 35);
     } else {

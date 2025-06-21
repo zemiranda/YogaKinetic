@@ -7,7 +7,9 @@ OpenCV opencv;
 
 PImage backgroundImage;
 boolean backgroundCaptured = false;
-
+//set da pose inicial
+int pose = 1;
+int mirror = 1;
 PGraphics poseMask; // forma da pose desejada
 
 void setup() {
@@ -16,27 +18,47 @@ void setup() {
   video.start();
 
   opencv = new OpenCV(this, 640, 480);
-
+  
   // Desenhar pose desejada
   poseMask = createGraphics(width, height);
-  drawTargetPose();
+  drawTargetPose(pose);
 }
 
-void drawTargetPose() {
+void drawTargetPose(int n) {
+  
   poseMask.beginDraw();
   poseMask.background(0);
   poseMask.fill(255);
   poseMask.noStroke();
+  
+  if(n == 0){
+    
+    poseMask.beginShape();
+    // Aumentado proporcionalmente
+    poseMask.vertex(width/2 - 100, 80);   // ombro esq
+    poseMask.vertex(width/2 - 60, 220);   // cintura esq
+    poseMask.vertex(width/2 - 160, 460);  // pé esq
+    poseMask.vertex(width/2 + 160, 460);  // pé dir
+    poseMask.vertex(width/2 + 60, 220);   // cintura dir
+    poseMask.vertex(width/2 + 100, 80);   // ombro dir
+    poseMask.endShape(CLOSE);
+  }
+  if(n == 1){
+    poseMask.beginShape();
+   // Cabeça — mais próxima e maior
+poseMask.rect(width/2 + 80, 200, 60, 60);
 
-  poseMask.beginShape();
-  // Aumentado proporcionalmente
-  poseMask.vertex(width/2 - 100, 80);   // ombro esq
-  poseMask.vertex(width/2 - 60, 220);   // cintura esq
-  poseMask.vertex(width/2 - 160, 460);  // pé esq
-  poseMask.vertex(width/2 + 160, 460);  // pé dir
-  poseMask.vertex(width/2 + 60, 220);   // cintura dir
-  poseMask.vertex(width/2 + 100, 80);   // ombro dir
-  poseMask.endShape(CLOSE);
+// Tronco — mais espesso e mais largo
+poseMask.rect(width/2 - 140, 230, 280, 80);
+
+// Braço frontal — mais grosso e alto
+poseMask.rect(width/2 - 140, 300, 40, 160);
+
+// Perna frontal — idem
+poseMask.rect(width/2 + 60, 300, 40, 160);
+    poseMask.endShape(CLOSE);
+   
+  }
 
   poseMask.endDraw();
 }
@@ -46,7 +68,15 @@ void captureEvent(Capture c) {
 }
 
 void draw() {
-  image(video, 0, 0);
+  //Mostra a camara
+ 
+  if(mirror == 1){
+    pushMatrix();
+    translate(width, 0);  // Move origin to the right edge
+    scale(-1, 1);        // Flip horizontally
+    image(video, 0, 0);  // Draw video flipped
+    popMatrix();
+  } else image(video, 0, 0); 
 
   // Mostra a pose alvo desenhada
   tint(0, 0, 255, 60);
@@ -55,6 +85,7 @@ void draw() {
 
   if (backgroundCaptured) {
     PImage current = video.get();
+    if(mirror == 1) current = flipHorizontal(current);
     current.filter(GRAY);
 
     // Subtração de fundo
@@ -112,7 +143,8 @@ void draw() {
 
     int inside = 0;
     int outside = 0;
-
+    
+  //conta os pixeis dentro e fora da figura
     for (int i = 0; i < poseMask.pixels.length; i++) {
       boolean user = brightness(maskLayer.pixels[i]) > 127;
       boolean target = brightness(poseMask.pixels[i]) > 127;
@@ -121,6 +153,7 @@ void draw() {
       else if (user && !target) outside++;
     }
 
+   //calcula a percentagem dentro e fora
     float total = inside + outside;
     float insidePct = total > 0 ? inside / total * 100 : 0;
     float outsidePct = total > 0 ? outside / total * 100 : 0;
@@ -142,7 +175,7 @@ void draw() {
     }
 
     // Debug visual
-    image(diff, 0, height - 120, 160, 120);
+    //bimage(diff, 0, height - 120, 160, 120);
     image(opencv.getOutput(), 160, height - 120, 160, 120);
   }
 
@@ -154,9 +187,45 @@ void draw() {
 void keyPressed() {
   if (key == 'b') {
     backgroundImage = video.get();
+    if(mirror == 1) backgroundImage = flipHorizontal(backgroundImage);  
     backgroundImage.filter(GRAY);
-    backgroundImage.filter(BLUR, 5);
+    backgroundImage.filter(BLUR, 7);
     backgroundCaptured = true;
     println("Fundo capturado.");
   }
+  //com a seta -> e <- podemos mudar as posicoes 
+  if (keyCode == RIGHT) {
+    if (pose >= 1) pose = 0;
+    else pose += 1;
+
+    drawTargetPose(pose);
+    println("Mudou para pose: " + pose);
+  }
+  if (keyCode == LEFT) {
+    if (pose <= 0) pose = 1;
+    else pose -= 1;
+
+    drawTargetPose(pose);
+    println("Mudou para pose: " + pose);
+  }
+  if (key == ' '){
+    if(mirror == 1) mirror = 0;
+    else mirror = 1;
+  }
+}
+
+PImage flipHorizontal(PImage img) {
+  PImage flipped = createImage(img.width, img.height, img.format);
+  img.loadPixels();
+  flipped.loadPixels();
+
+  for (int y = 0; y < img.height; y++) {
+    for (int x = 0; x < img.width; x++) {
+      int flippedX = img.width - 1 - x;
+      flipped.pixels[y * img.width + x] = img.pixels[y * img.width + flippedX];
+    }
+  }
+
+  flipped.updatePixels();
+  return flipped;
 }
